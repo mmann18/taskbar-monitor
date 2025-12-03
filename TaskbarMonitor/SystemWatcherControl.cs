@@ -692,6 +692,7 @@ namespace TaskbarMonitor
         }
         private System.Windows.Forms.Timer mousePollTimer;
         private bool lastMouseOver = false;
+        private bool leftButtonDown = false;
 
         private void StartMousePolling()
         {
@@ -718,6 +719,7 @@ namespace TaskbarMonitor
             if (this.Disposing || this.IsDisposed) return;
             var clientRect = this.RectangleToScreen(this.ClientRectangle);
             bool isOver = clientRect.Contains(cursorPos);
+            bool isLeftDown = (Control.MouseButtons & MouseButtons.Left) == MouseButtons.Left;
 
             if (isOver && !lastMouseOver)
             {
@@ -728,6 +730,20 @@ namespace TaskbarMonitor
             {
                 lastMouseOver = false;
                 SystemWatcherControl_MouseLeave(this, EventArgs.Empty);
+                leftButtonDown = false;
+            }
+
+            if (isOver)
+            {
+                if (isLeftDown)
+                {
+                    leftButtonDown = true;
+                }
+                else if (leftButtonDown)
+                {
+                    leftButtonDown = false;
+                    OnClick(EventArgs.Empty);
+                }
             }
         }
         protected override void WndProc(ref Message m)
