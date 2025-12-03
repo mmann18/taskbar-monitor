@@ -692,6 +692,12 @@ namespace TaskbarMonitor
         }
         private System.Windows.Forms.Timer mousePollTimer;
         private bool lastMouseOver = false;
+        private bool leftButtonDown = false;
+        private bool mouseMessagesWorking = false;
+        private const int VK_LBUTTON = 0x01;
+
+        [System.Runtime.InteropServices.DllImport("user32.dll")]
+        private static extern short GetAsyncKeyState(int vKey);
 
         private void StartMousePolling()
         {
@@ -714,10 +720,21 @@ namespace TaskbarMonitor
 
         private void MousePollTimer_Tick(object sender, EventArgs e)
         {
+            // On Windows 11 taskbar deskbands, the host window sometimes eats mouse
+            // messages, so WinForms MouseDown/MouseUp never fire. We use polling as a
+            // fallback and automatically disable it once we observe real mouse
+            // messages (see OnMouseDown/OnMouseUp).
+            if (mouseMessagesWorking)
+            {
+                StopMousePolling();
+                return;
+            }
+
             var cursorPos = Cursor.Position;
             if (this.Disposing || this.IsDisposed) return;
             var clientRect = this.RectangleToScreen(this.ClientRectangle);
             bool isOver = clientRect.Contains(cursorPos);
+            bool isLeftDown = (GetAsyncKeyState(VK_LBUTTON) & 0x8000) != 0;
 
             if (isOver && !lastMouseOver)
             {
@@ -728,6 +745,59 @@ namespace TaskbarMonitor
             {
                 lastMouseOver = false;
                 SystemWatcherControl_MouseLeave(this, EventArgs.Empty);
+                leftButtonDown = false;
+            }
+
+            if (isOver)
+            {
+                if (isLeftDown)
+                {
+                    leftButtonDown = true;
+                }
+                else if (leftButtonDown)
+                {
+                    leftButtonDown = false;
+                    OnClick(EventArgs.Empty);
+                }
+            }
+        }
+
+        protected override void OnMouseEnter(EventArgs e)
+        {
+            mouseMessagesWorking = true;
+            lastMouseOver = true;
+            base.OnMouseEnter(e);
+        }
+
+        protected override void OnMouseLeave(EventArgs e)
+        {
+            mouseMessagesWorking = true;
+            lastMouseOver = false;
+            leftButtonDown = false;
+            base.OnMouseLeave(e);
+        }
+
+        protected override void OnMouseDown(MouseEventArgs e)
+        {
+            mouseMessagesWorking = true;
+            if (e.Button == MouseButtons.Left)
+            {
+                leftButtonDown = true;
+            }
+            base.OnMouseDown(e);
+        }
+
+        protected override void OnMouseUp(MouseEventArgs e)
+        {
+            mouseMessagesWorking = true;
+            bool shouldClick = leftButtonDown && e.Button == MouseButtons.Left;
+            leftButtonDown = false;
+
+            base.OnMouseUp(e);
+
+            if (shouldClick && this.ClientRectangle.Contains(e.Location))
+            {
+                OnClick(EventArgs.Empty);
             }
         }
         protected override void WndProc(ref Message m)

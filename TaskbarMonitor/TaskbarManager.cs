@@ -270,7 +270,16 @@ namespace TaskbarMonitor
 
             if (WindowsInformation.IsWindows11_22621())
             {
-                Win32Api.SetWindowLong(taskbarMonitorControl.Handle, Win32Api.GWLParameter.GWL_EXSTYLE, (uint)(0x00000000L | 0x00010000L | 0x00080000 | 0x02000000L | 0x00000020L));
+                const uint WS_EX_CONTROLPARENT = 0x00010000;
+                const uint WS_EX_LAYERED = 0x00080000;
+                const uint WS_EX_COMPOSITED = 0x02000000;
+                const uint WS_EX_TRANSPARENT = 0x00000020;
+
+                uint exStyle = Win32Api.GetWindowLong(taskbarMonitorControl.Handle, Win32Api.GWLParameter.GWL_EXSTYLE);
+                exStyle |= WS_EX_CONTROLPARENT | WS_EX_LAYERED | WS_EX_COMPOSITED;
+                exStyle &= ~WS_EX_TRANSPARENT; // allow the control to receive mouse messages
+
+                Win32Api.SetWindowLong(taskbarMonitorControl.Handle, Win32Api.GWLParameter.GWL_EXSTYLE, exStyle);
                 Win32Api.SetLayeredWindowAttributes(taskbarMonitorControl.Handle, 0, 255, 0x00000001 | 0x00000002);
             }
             //Win32Api.SetWindowPos(taskbarMonitorControl.Handle,  new IntPtr(-1), 0, 0, 0, 0,
